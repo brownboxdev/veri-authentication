@@ -1,5 +1,8 @@
 ## v3.0.0
 
+<!--TODO: add a tenant declaration helper that deletes a tenant's sessions, including impersonating ones, when it is destroyed, like https://github.com/brownboxdev/rabarber-authorization/issues/115-->
+<!--TODO: check Rabarber 6.1 for changes worth adopting-->
+
 ### Breaking
 
 - Dropped support for Rails 8.0 and earlier
