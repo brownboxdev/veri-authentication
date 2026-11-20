@@ -32,7 +32,7 @@
 
 - The generator now takes the primary key type from the existing user table, making `--uuid` unnecessary
 
-To upgrade to v3.0.0, please refer to the [migration guide](https://github.com/enjaku4/veri/discussions/28)
+To upgrade to v3.0.0, please refer to the [migration guide](https://github.com/brownboxdev/veri-authentication/discussions/28)
 
 ## v2.1.0
 
