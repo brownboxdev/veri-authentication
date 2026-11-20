@@ -8,9 +8,17 @@ module Veri
 
     argument :table_name, type: :string, required: true
 
-    class_option :uuid, type: :boolean, default: false, desc: "Use UUIDs as primary keys"
-
     def create_migrations
+      primary_key = ActiveRecord::Base.with_connection do |connection|
+        raise Thor::Error, "Table `#{table_name}` does not exist, run its migration first" unless connection.table_exists?(table_name)
+
+        connection.columns(table_name).find { |column| column.name == connection.primary_key(table_name) }
+      end
+
+      @id_type = primary_key.sql_type
+      @sessions_id_type = @id_type unless primary_key.auto_incremented_by_db?
+      @sessions_id_default = primary_key.default_function if @sessions_id_type
+
       migration_template "add_veri_authentication.rb.erb", "db/migrate/add_veri_authentication.rb"
     end
 
