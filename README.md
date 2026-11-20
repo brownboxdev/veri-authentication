@@ -55,6 +55,22 @@ rails generate veri:authentication users
 
 Veri's sessions table uses the same primary key type as your users table, so the table must exist before you run the generator.
 
+If your database can't handle your UUIDs on its own, apply your app's UUID handling to Veri's session model in an initializer. The examples below show which attributes need it; the code itself depends on how your app handles UUIDs. If your app generates UUIDs:
+
+```rb
+Rails.application.config.to_prepare do
+  Veri::Session.before_create { self.id ||= SecureRandom.uuid }
+end
+```
+
+If it stores UUIDs as binary:
+
+```rb
+Rails.application.config.to_prepare do
+  [:id, :authenticatable_id, :original_authenticatable_id, :tenant_id, :original_tenant_id].each { |name| Veri::Session.attribute name, YourBinaryUuidType.new }
+end
+```
+
 Run the migration:
 
 ```shell

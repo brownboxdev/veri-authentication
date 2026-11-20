@@ -19,6 +19,7 @@
 - Added `Veri::Session.from_request` method to fetch the session from a request object
 - Added `Veri::Session.shapeshifted` to fetch impersonating sessions
 - Added `Veri::Session.in_original_tenant` to fetch impersonating sessions that return to a tenant
+- Added support for binary UUID primary keys in MySQL
 
 ### Bugs
 
