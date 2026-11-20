@@ -68,7 +68,9 @@ If it also stores them as binary, add your binary type on top of that:
 ```rb
 Rails.application.config.to_prepare do
   Veri::Session.before_create { self.id ||= SecureRandom.uuid }
-  [:id, :authenticatable_id, :original_authenticatable_id, :tenant_id, :original_tenant_id].each { |name| Veri::Session.attribute name, YourBinaryUuidType.new }
+  [:id, :authenticatable_id, :original_authenticatable_id, :tenant_id, :original_tenant_id].each do |name|
+    Veri::Session.attribute name, YourBinaryUuidType.new
+  end
 end
 ```
 
