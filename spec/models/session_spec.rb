@@ -99,7 +99,7 @@ RSpec.describe Veri::Session do
           hashed_token: "bar",
           last_seen_at: Time.current,
           tenant_type: "Company",
-          tenant_id: 42
+          tenant_id: Company.create!.id
         )
       end
 
