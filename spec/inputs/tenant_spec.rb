@@ -9,7 +9,7 @@ RSpec.describe Veri::Inputs::Tenant do
         it { is_expected.to eq(tenant_type: "subdomain", tenant_id: nil) }
       end
 
-      context "when an instance of ActiveRecord::Base is given" do
+      context "when a record of a tenant model is given" do
         let(:tenant) { Company.create! }
 
         it { is_expected.to eq(tenant_type: "Company", tenant_id: tenant.id) }
@@ -33,8 +33,16 @@ RSpec.describe Veri::Inputs::Tenant do
         end
       end
 
-      context "when an instance of ActiveRecord::Base is given but not persisted" do
+      context "when a record of a tenant model is given but not persisted" do
         let(:tenant) { Company.new }
+
+        it "raises an error" do
+          expect { subject }.to raise_error(Veri::InvalidArgumentError, "Error")
+        end
+      end
+
+      context "when a record of a model not declared as a tenant is given" do
+        let(:tenant) { Client.create! }
 
         it "raises an error" do
           expect { subject }.to raise_error(Veri::InvalidArgumentError, "Error")

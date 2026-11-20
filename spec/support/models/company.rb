@@ -1,1 +1,3 @@
-class Company < ApplicationRecord; end
+class Company < ApplicationRecord
+  veri_tenant
+end

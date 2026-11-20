@@ -7,8 +7,7 @@ module Veri
           { tenant_type: nil, tenant_id: nil }
         when String
           { tenant_type: tenant, tenant_id: nil }
-        when ActiveRecord::Base
-          raise_error unless tenant.persisted?
+        when Veri::Tenantable
           { tenant_type: tenant.class.to_s, tenant_id: tenant.id }
         end
       end
@@ -16,12 +15,12 @@ module Veri
       private
 
       def default_error = Veri::InvalidTenantError
-      def default_message = "Expected a string, an ActiveRecord model instance, or nil, got `#{@value.inspect}`"
+      def default_message = "Expected a string, a persisted instance of a model declared with `veri_tenant`, or nil, got `#{@value.inspect}`"
 
       def validate_and_normalize
         return @value if @value.nil?
         return @value if @value.is_a?(String) && @value.present?
-        return @value if @value.is_a?(ActiveRecord::Base)
+        return @value if @value.is_a?(Veri::Tenantable) && @value.persisted?
 
         raise_error
       end

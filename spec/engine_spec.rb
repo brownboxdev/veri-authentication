@@ -9,6 +9,16 @@ RSpec.describe Veri::Engine do
     end
   end
 
+  describe "tenant models" do
+    it "lets models declare themselves as tenants" do
+      expect(Company.ancestors).to include(Veri::Tenantable)
+    end
+
+    it "does not make other models tenants" do
+      expect(Client.ancestors).not_to include(Veri::Tenantable)
+    end
+  end
+
   describe "migrations" do
     it "can use the migration helpers" do
       expect(ActiveRecord::Migration.new).to respond_to(:migrate_authentication_tenant!, :delete_authentication_tenant!)

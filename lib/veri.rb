@@ -31,6 +31,7 @@ end
 
 require_relative "veri/controllers/concerns/authentication"
 require_relative "veri/models/concerns/authenticatable"
+require_relative "veri/models/tenant_declaration"
 require_relative "veri/helpers/migration_helpers"
 
 require_relative "veri/engine"

@@ -423,7 +423,15 @@ log_in(user, tenant: request.subdomain)
 log_in(user, tenant: company)
 ```
 
-Tenants can be represented as either a string or an `ActiveRecord` model instance. Without the `tenant:` argument the session has no tenant, which is the single-tenant setup.
+Tenants can be represented as either a string or an instance of a model declared as a tenant:
+
+```rb
+class Company < ApplicationRecord
+  veri_tenant
+end
+```
+
+Without the `tenant:` argument the session has no tenant, which is the single-tenant setup.
 
 Use `current_tenant` in controllers and views to get the tenant of the current session:
 
@@ -499,20 +507,9 @@ All other session methods work the same way in multi-tenant applications as in s
 
 ### Orphaned Sessions
 
-When a tenant object is deleted from your database, its sessions become orphaned. A user with an orphaned session stays logged in, and `current_tenant` raises `Veri::Error` for them.
+Destroying a record of a model declared with `veri_tenant` also deletes its sessions, including the impersonating sessions that return to it, so their users are logged out.
 
-Terminate the sessions of a tenant as part of the same operation that deletes it:
-
-```rb
-Company.transaction do
-  Veri::Session.in_tenant(company).terminate_all
-  # If you use impersonation, also terminate the sessions that return to this tenant
-  Veri::Session.in_original_tenant(company).terminate_all
-  company.destroy!
-end
-```
-
-If that wasn't done, clean up the orphaned sessions as a fallback:
+Sessions become orphaned when their tenant is removed without running Active Record callbacks, for example with `delete` or raw SQL, or is destroyed after its model stopped declaring `veri_tenant`. Users with orphaned sessions remain logged in, and looking up their tenant raises an error. Use `prune` as a fallback to delete orphaned sessions:
 
 ```rb
 Veri::Session.prune

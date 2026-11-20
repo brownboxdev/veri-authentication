@@ -1,7 +1,5 @@
 ## v3.0.0
 
-<!--TODO: add a tenant declaration helper that deletes a tenant's sessions, including impersonating ones, when it is destroyed, like https://github.com/brownboxdev/rabarber-authorization/issues/115-->
-
 ### Breaking
 
 - Dropped support for Rails 8.0 and earlier
@@ -11,9 +9,11 @@
 - Added algorithm markers to stored password hashes
 - `update_password` now terminates all sessions of the user by default
 - The tenant is now passed to `log_in` and `current_tenant` returns the tenant of the current session
+- Models used as tenants must now be declared with `veri_tenant`
 
 ### Features
 
+- Added `veri_tenant` to declare tenant models and delete their sessions when they are destroyed
 - Added `impersonating_sessions` association to fetch the sessions in which a user is impersonating someone
 - Added `Veri::Session.from_request` method to fetch the session from a request object
 - Added `Veri::Session.shapeshifted` to fetch impersonating sessions

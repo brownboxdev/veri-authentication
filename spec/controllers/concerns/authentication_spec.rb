@@ -129,12 +129,10 @@ RSpec.describe Veri::Authentication do
         expect(subject).to eq(user.sessions.take)
       end
 
-      context "when the tenant has been deleted" do
+      context "when the tenant has been destroyed" do
         before { company.destroy! }
 
-        it "returns the current session" do
-          expect(subject).to eq(user.sessions.take)
-        end
+        it { is_expected.to be_nil }
       end
     end
   end
@@ -181,7 +179,7 @@ RSpec.describe Veri::Authentication do
       end
 
       context "when the tenant has been deleted" do
-        before { company.destroy! }
+        before { company.delete }
 
         it "raises an error" do
           expect { subject }.to raise_error(Veri::Error, "Tenant not found")
@@ -343,7 +341,7 @@ RSpec.describe Veri::Authentication do
 
       it "raises an error" do
         expect { subject }.to raise_error(
-          Veri::InvalidTenantError, "Expected a string, an ActiveRecord model instance, or nil, got `123`"
+          Veri::InvalidTenantError, "Expected a string, a persisted instance of a model declared with `veri_tenant`, or nil, got `123`"
         )
       end
     end

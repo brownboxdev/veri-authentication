@@ -46,7 +46,7 @@ RSpec.describe Veri::Session do
       let(:tenant) { 123 }
 
       it "raises an error" do
-        expect { subject }.to raise_error(Veri::InvalidTenantError, "Expected a string, an ActiveRecord model instance, or nil, got `123`")
+        expect { subject }.to raise_error(Veri::InvalidTenantError, "Expected a string, a persisted instance of a model declared with `veri_tenant`, or nil, got `123`")
       end
     end
 
@@ -74,7 +74,7 @@ RSpec.describe Veri::Session do
       let(:tenant) { 123 }
 
       it "raises an error" do
-        expect { subject }.to raise_error(Veri::InvalidTenantError, "Expected a string, an ActiveRecord model instance, or nil, got `123`")
+        expect { subject }.to raise_error(Veri::InvalidTenantError, "Expected a string, a persisted instance of a model declared with `veri_tenant`, or nil, got `123`")
       end
     end
 
@@ -420,7 +420,7 @@ RSpec.describe Veri::Session do
       let(:tenant) { 123 }
 
       it "raises an error" do
-        expect { subject }.to raise_error(Veri::InvalidTenantError, "Expected a string, an ActiveRecord model instance, or nil, got `123`")
+        expect { subject }.to raise_error(Veri::InvalidTenantError, "Expected a string, a persisted instance of a model declared with `veri_tenant`, or nil, got `123`")
       end
     end
 
@@ -499,7 +499,7 @@ RSpec.describe Veri::Session do
       let(:user) { User.create! }
 
       it "raises an error" do
-        expect { subject }.to raise_error(Veri::InvalidTenantError, "Expected a string, an ActiveRecord model instance, or nil, got `123`")
+        expect { subject }.to raise_error(Veri::InvalidTenantError, "Expected a string, a persisted instance of a model declared with `veri_tenant`, or nil, got `123`")
       end
     end
 
@@ -844,7 +844,7 @@ RSpec.describe Veri::Session do
     end
 
     it "deletes orphaned tenant sessions" do
-      tenant.destroy!
+      tenant.delete
       expect { subject }
         .to change { described_class.exists?(id: session.id) }.from(true).to(false)
         .and change(described_class, :count).from(2).to(1)
@@ -852,14 +852,14 @@ RSpec.describe Veri::Session do
 
     it "deletes impersonating sessions with a string tenant whose original tenant was deleted" do
       session.update!(tenant_type: "acme", tenant_id: nil, original_tenant: tenant, original_authenticatable: User.create!)
-      tenant.destroy!
+      tenant.delete
 
       expect { subject }.to change { described_class.exists?(id: session.id) }.from(true).to(false)
     end
 
     it "deletes impersonating sessions whose original tenant was deleted" do
       session.shapeshift(User.create!, tenant: Company.create!)
-      tenant.destroy!
+      tenant.delete
 
       expect { subject }.to change { described_class.exists?(id: session.id) }.from(true).to(false)
     end
