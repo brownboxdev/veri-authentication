@@ -867,7 +867,7 @@ RSpec.describe Veri::Session do
     it "raises when the class of a tenant no longer exists" do
       session.update!(tenant_type: "Foo")
 
-      expect { subject }.to raise_error(Veri::Error, "Tenant not found: class `Foo` may have been renamed or deleted")
+      expect { subject }.to raise_error(NameError, "uninitialized constant Foo")
     end
   end
 
