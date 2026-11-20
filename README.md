@@ -50,12 +50,10 @@ bundle install
 Generate the migration for your user model (replace `users` with your table name if different):
 
 ```shell
-# For standard integer IDs
 rails generate veri:authentication users
-
-# For UUID primary keys
-rails generate veri:authentication users --uuid
 ```
+
+Veri's sessions table uses the same primary key type as your users table, so the table must exist before you run the generator.
 
 Run the migration:
 
