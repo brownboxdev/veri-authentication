@@ -26,6 +26,11 @@
 - Fixed migration helpers raising when the tenant has no sessions, which broke migrations on fresh databases
 - Fixed `true_tenant` returning the impersonated tenant when the impersonator had no tenant
 - Fixed the generated migration failing when the user table's primary key is not `id`
+- Fixed the generated migration not working with UUID primary keys on some databases
+
+### Misc
+
+- The generator now takes the primary key type from the existing user table, making `--uuid` unnecessary
 
 To upgrade to v3.0.0, please refer to the [migration guide](https://github.com/enjaku4/veri/discussions/28)
 
