@@ -63,13 +63,16 @@ Rails.application.config.to_prepare do
 end
 ```
 
-If it stores UUIDs as binary:
+If it also stores them as binary, add your binary type on top of that:
 
 ```rb
 Rails.application.config.to_prepare do
+  Veri::Session.before_create { self.id ||= SecureRandom.uuid }
   [:id, :authenticatable_id, :original_authenticatable_id, :tenant_id, :original_tenant_id].each { |name| Veri::Session.attribute name, YourBinaryUuidType.new }
 end
 ```
+
+If your app sets any other kind of id itself, such as its own integer ids, do the same with your own id handling.
 
 Run the migration:
 
