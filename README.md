@@ -504,10 +504,12 @@ When a tenant object is deleted from your database, its sessions become orphaned
 Terminate the sessions of a tenant as part of the same operation that deletes it:
 
 ```rb
-Veri::Session.in_tenant(company).terminate_all
-# If you use impersonation, also terminate the sessions that return to this tenant
-Veri::Session.in_original_tenant(company).terminate_all
-company.destroy!
+Company.transaction do
+  Veri::Session.in_tenant(company).terminate_all
+  # If you use impersonation, also terminate the sessions that return to this tenant
+  Veri::Session.in_original_tenant(company).terminate_all
+  company.destroy!
+end
 ```
 
 If that wasn't done, clean up the orphaned sessions as a fallback:
@@ -518,7 +520,7 @@ Veri::Session.prune
 
 ### Tenant Migrations
 
-When you rename or remove models used as tenants, you need to update Veri's stored data accordingly. Use these irreversible data migrations:
+When you rename or remove models used as tenants, you need to update Veri's stored data accordingly. Veri adds these helpers to your migrations. The changes they make are irreversible:
 
 ```rb
 # Rename a tenant class (e.g., when you rename your Organization model to Company)
