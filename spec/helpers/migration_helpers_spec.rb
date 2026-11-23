@@ -27,13 +27,13 @@ RSpec.describe Veri::MigrationHelpers do
 
   describe "#migrate_authentication_tenant!" do
     it "migrates sessions from old tenant class to new tenant class" do
-      sessions = Veri::Session.where(tenant_type: "Client")
+      session_ids = Veri::Session.where(tenant_type: "Client").ids
 
-      expect(sessions.count).to eq(2)
+      expect(session_ids.size).to eq(2)
 
       dummy_migration.migrate_authentication_tenant!("Client", "Company")
 
-      expect(Veri::Session.where(id: sessions.pluck(:id)).pluck(:tenant_type)).to all(eq("Company"))
+      expect(Veri::Session.where(id: session_ids).pluck(:tenant_type)).to all(eq("Company"))
     end
 
     it "migrates the tenant that impersonating sessions return to" do
@@ -76,13 +76,13 @@ RSpec.describe Veri::MigrationHelpers do
 
   describe "#delete_authentication_tenant!" do
     it "deletes sessions for the given tenant" do
-      sessions = Veri::Session.where(tenant_type: "Company")
+      session_ids = Veri::Session.where(tenant_type: "Company").ids
 
-      expect(sessions.count).to eq(1)
+      expect(session_ids.size).to eq(1)
 
       dummy_migration.delete_authentication_tenant!("Company")
 
-      expect(Veri::Session.exists?(id: sessions.pluck(:id))).to be false
+      expect(Veri::Session.exists?(id: session_ids)).to be false
     end
 
     it "deletes impersonating sessions that would return to the given tenant" do
