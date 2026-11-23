@@ -793,6 +793,36 @@ RSpec.describe Veri::Session do
       end
     end
 
+    context "when a user of the session is hidden by a default scope" do
+      around do |example|
+        default_scopes_were = User.default_scopes
+        example.run
+      ensure
+        User.default_scopes = default_scopes_were
+      end
+
+      before { request.cookie_jar.encrypted["veri_token"] = token }
+
+      def hide(hidden_user)
+        User.class_eval { default_scope { where.not(id: hidden_user.id) } }
+      end
+
+      context "when it is the session's user" do
+        before { hide(user) }
+
+        it { is_expected.to be_nil }
+      end
+
+      context "when it is the impersonator" do
+        before do
+          user.sessions.sole.shapeshift(User.create!)
+          hide(user)
+        end
+
+        it { is_expected.to be_nil }
+      end
+    end
+
     context "when the session is expired" do
       before { request.cookie_jar.encrypted["veri_token"] = token }
 

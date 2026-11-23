@@ -145,7 +145,7 @@ module Veri
 
         session = eager_load(:authenticatable, :original_authenticatable).find_by(hashed_token: digest_token(token))
 
-        return nil unless session&.active?
+        return nil unless session&.active? && session.identity && session.true_identity
 
         raise Veri::Error, "Session belongs to a suspended user" if session.identity.suspended? || session.true_identity.suspended?
 
