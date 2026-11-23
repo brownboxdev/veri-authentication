@@ -16,7 +16,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.2
+          ruby-version: 3.3
       - name: Bundle install
         run: bundle install
       - name: Run RuboCop
@@ -33,11 +33,11 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.2
+          ruby-version: 3.3
       - name: Install grepfruit
         run: gem install grepfruit
       - name: Run grepfruit
-        run: grepfruit s -r TODO -e 'vendor,tmp,.yardoc,.git,ci.yml:40' --search-hidden
+        run: grepfruit s -p -r TODO -e 'vendor,tmp,.yardoc,.git,ci.yml:40' --search-hidden
 
   tests:
     runs-on: ubuntu-latest
@@ -48,13 +48,10 @@ jobs:
     strategy:
       matrix:
         ruby:
-          - "3.2"
           - "3.3"
           - "3.4"
           - "4.0"
         rails:
-          - "~> 7.2.0"
-          - "~> 8.0.0"
           - "~> 8.1.0"
 
     env:
@@ -72,22 +69,58 @@ jobs:
       - name: Run RSpec
         run: bundle exec rspec
 
-  uuid_tests:
+  database_tests:
     runs-on: ubuntu-latest
 
-    name: UUID Tests
+    name: ${{ matrix.name }}
     permissions:
       contents: read
+    strategy:
+      matrix:
+        include:
+          - name: MySQL
+            database_url: trilogy://root:root@127.0.0.1:3306/veri_test
+          - name: MySQL UUID
+            database_url: trilogy://root:root@127.0.0.1:3306/veri_test
+            id_type: uuid
+          - name: MySQL binary UUID
+            database_url: trilogy://root:root@127.0.0.1:3306/veri_test
+            id_type: binary_uuid
+          - name: PostgreSQL
+            database_url: postgres://postgres:postgres@127.0.0.1:5432/veri_test
+          - name: PostgreSQL UUID
+            database_url: postgres://postgres:postgres@127.0.0.1:5432/veri_test
+            id_type: uuid
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: veri_test
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping -h 127.0.0.1 -proot" --health-interval=5s --health-timeout=5s --health-retries=20
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: veri_test
+        ports:
+          - 5432:5432
+        options: --health-cmd=pg_isready --health-interval=5s --health-timeout=5s --health-retries=20
 
     env:
-      UUID_TESTS: "true"
+      DATABASE_URL: "${{ matrix.database_url }}"
+      ID_TYPE: "${{ matrix.id_type }}"
+      BUNDLE_PATH: "vendor/bundle"
 
     steps:
       - uses: actions/checkout@v7
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.2
+          ruby-version: "4.0"
       - name: Bundle install
         run: bundle install
       - name: Run RSpec

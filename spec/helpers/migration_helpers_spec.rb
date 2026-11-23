@@ -27,26 +27,47 @@ RSpec.describe Veri::MigrationHelpers do
 
   describe "#migrate_authentication_tenant!" do
     it "migrates sessions from old tenant class to new tenant class" do
-      sessions = Veri::Session.where(tenant_type: "Client")
+      session_ids = Veri::Session.where(tenant_type: "Client").ids
 
-      expect(sessions.count).to eq(2)
+      expect(session_ids.size).to eq(2)
 
       dummy_migration.migrate_authentication_tenant!("Client", "Company")
 
-      expect(Veri::Session.where(id: sessions.pluck(:id)).pluck(:tenant_type)).to all(eq("Company"))
+      expect(Veri::Session.where(id: session_ids).pluck(:tenant_type)).to all(eq("Company"))
+    end
+
+    it "migrates the tenant that impersonating sessions return to" do
+      session = Veri::Session.create!(
+        tenant: Company.create!,
+        original_tenant: Client.create!,
+        original_authenticatable: User.create!,
+        shapeshifted_at: Time.current,
+        hashed_token: "qux",
+        expires_at: 1.hour.ago,
+        authenticatable: User.create!,
+        last_seen_at: 1.week.ago
+      )
+
+      dummy_migration.migrate_authentication_tenant!("Client", "Company")
+
+      expect(session.reload.original_tenant_type).to eq("Company")
+    end
+
+    it "does nothing when no sessions exist in the old tenant" do
+      expect { dummy_migration.migrate_authentication_tenant!("Organization", "Company") }.not_to(change { Veri::Session.pluck(:tenant_type) })
     end
 
     context "errors" do
-      [nil, " ", "NonExistent", 1, [1, 2], {}].each do |invalid_tenant|
+      [nil, "", 1, [1, 2], {}].each do |invalid_tenant|
         it "raises if old tenant class is invalid: #{invalid_tenant.inspect}" do
           expect { dummy_migration.migrate_authentication_tenant!(invalid_tenant, "Company") }.to raise_error(
-            Veri::InvalidArgumentError, "No sessions exist in tenant #{invalid_tenant.inspect}"
+            Veri::InvalidArgumentError, "Expected a non-empty string, got `#{invalid_tenant.inspect}`"
           )
         end
 
         it "raises if new tenant class is invalid: #{invalid_tenant.inspect}" do
           expect { dummy_migration.migrate_authentication_tenant!("Client", invalid_tenant) }.to raise_error(
-            Veri::InvalidArgumentError, "Cannot migrate tenant to #{invalid_tenant.inspect}: class does not exist"
+            Veri::InvalidArgumentError, "Expected a non-empty string, got `#{invalid_tenant.inspect}`"
           )
         end
       end
@@ -55,20 +76,41 @@ RSpec.describe Veri::MigrationHelpers do
 
   describe "#delete_authentication_tenant!" do
     it "deletes sessions for the given tenant" do
-      sessions = Veri::Session.where(tenant_type: "Company")
+      session_ids = Veri::Session.where(tenant_type: "Company").ids
 
-      expect(sessions.count).to eq(1)
+      expect(session_ids.size).to eq(1)
 
       dummy_migration.delete_authentication_tenant!("Company")
 
-      expect(Veri::Session.exists?(id: sessions.pluck(:id))).to be false
+      expect(Veri::Session.exists?(id: session_ids)).to be false
+    end
+
+    it "deletes impersonating sessions that would return to the given tenant" do
+      session = Veri::Session.create!(
+        tenant: Client.create!,
+        original_tenant: Company.create!,
+        original_authenticatable: User.create!,
+        shapeshifted_at: Time.current,
+        hashed_token: "qux",
+        expires_at: 1.hour.ago,
+        authenticatable: User.create!,
+        last_seen_at: 1.week.ago
+      )
+
+      dummy_migration.delete_authentication_tenant!("Company")
+
+      expect(Veri::Session.exists?(session.id)).to be false
+    end
+
+    it "does nothing when no sessions exist in the tenant" do
+      expect { dummy_migration.delete_authentication_tenant!("Organization") }.not_to change(Veri::Session, :count)
     end
 
     context "errors" do
-      [nil, " ", 1, [1, 2], {}].each do |invalid_tenant|
+      [nil, "", 1, [1, 2], {}].each do |invalid_tenant|
         it "raises if tenant class is invalid: #{invalid_tenant.inspect}" do
           expect { dummy_migration.delete_authentication_tenant!(invalid_tenant) }.to raise_error(
-            Veri::InvalidArgumentError, "No sessions exist in tenant #{invalid_tenant.inspect}"
+            Veri::InvalidArgumentError, "Expected a non-empty string, got `#{invalid_tenant.inspect}`"
           )
         end
       end

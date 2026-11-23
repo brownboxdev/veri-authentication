@@ -11,7 +11,7 @@ Veri supports multi-tenancy, granular session management, multiple password hash
 
 **Example of Usage:**
 
-Consider a multi-tenant SaaS application where users need to manage their active sessions across devices and browsers, terminating specific sessions remotely when needed. Administrators require similar capabilities in their admin panel, with additional powers to lock accounts and temporarily assume user identities for troubleshooting. You can build all this easily with Veri.
+Consider a multi-tenant SaaS application where users need to manage their active sessions across devices and browsers, terminating specific sessions remotely when needed. Administrators require similar capabilities in their admin panel, with additional powers to suspend accounts and temporarily assume user identities for troubleshooting. You can build all this easily with Veri.
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@ Consider a multi-tenant SaaS application where users need to manage their active
   - [Password Management](#password-management)
   - [Controller Integration](#controller-integration)
   - [Authentication Sessions](#authentication-sessions)
-  - [Account Lockout](#account-lockout)
+  - [Account Suspension](#account-suspension)
   - [User Impersonation](#user-impersonation)
   - [Multi-Tenancy](#multi-tenancy)
   - [View Helpers](#view-helpers)
@@ -50,12 +50,31 @@ bundle install
 Generate the migration for your user model (replace `users` with your table name if different):
 
 ```shell
-# For standard integer IDs
 rails generate veri:authentication users
-
-# For UUID primary keys
-rails generate veri:authentication users --uuid
 ```
+
+Veri's sessions table uses the same primary key type as your users table, so the table must exist before you run the generator.
+
+If your database can't handle your UUIDs on its own, apply your app's UUID handling to Veri's session model in an initializer. The examples below show which attributes need it; the code itself depends on how your app handles UUIDs. If your app generates UUIDs:
+
+```rb
+Rails.application.config.to_prepare do
+  Veri::Session.before_create { self.id ||= SecureRandom.uuid }
+end
+```
+
+If it also stores them as binary, add your binary type on top of that:
+
+```rb
+Rails.application.config.to_prepare do
+  Veri::Session.before_create { self.id ||= SecureRandom.uuid }
+  [:id, :authenticatable_id, :original_authenticatable_id, :tenant_id, :original_tenant_id].each do |name|
+    Veri::Session.attribute name, YourBinaryUuidType.new
+  end
+end
+```
+
+If your app sets any other kind of id itself, such as its own integer ids, do the same with your own id handling.
 
 Run the migration:
 
@@ -97,11 +116,16 @@ user.verify_password("password")
 # Check if a password is set
 user.password_set?
 ```
-Changing a password does not automatically terminate existing sessions. If you want to invalidate the user's sessions after a password change, do so explicitly:
+
+Updating a password terminates all of the user's sessions, including the current one. To keep the user signed in, log them in again or opt out of session termination:
 
 ```rb
+# Update a password and keep the user signed in
 user.update_password(new_password)
-user.sessions.terminate_all
+log_in(user)
+
+# Update a password without terminating sessions
+user.update_password(new_password, terminate_sessions: false)
 ```
 
 ## Controller Integration
@@ -178,7 +202,7 @@ current_user
 # Returns true if user is authenticated
 logged_in?
 
-# Authenticates user, returns true on success or false if account is locked
+# Authenticates user, returns true on success or false if account is suspended
 log_in(user)
 
 # Terminates current session
@@ -209,8 +233,6 @@ class ApplicationController < ActionController::Base
 end
 ```
 
-The `when_unauthenticated` method can be overridden in any controller to provide controller-specific handling.
-
 ## Authentication Sessions
 
 Veri stores authentication sessions in the database, providing session management capabilities:
@@ -223,6 +245,33 @@ user.sessions
 
 # Get current session in controller
 current_session
+
+# Get session from a request
+Veri::Session.from_request(request)
+```
+
+### Sessions Outside Controllers
+
+Code that handles a request outside of controllers, such as Action Cable connections and route constraints, can find the current session from the request:
+
+```rb
+module ApplicationCable
+  class Connection < ActionCable::Connection::Base
+    identified_by :current_user
+
+    # Runs only when the connection opens; disconnecting it after the session is terminated is up to your application
+    def connect
+      self.current_user = Veri::Session.from_request(request)&.identity || reject_unauthorized_connection
+    end
+  end
+end
+```
+
+```rb
+# Only administrators can open the jobs dashboard
+constraints -> (request) { Veri::Session.from_request(request)&.identity&.admin? } do
+  mount Sidekiq::Web => "/jobs"
+end
 ```
 
 ### Session Information
@@ -283,28 +332,30 @@ user.sessions.inactive.terminate_all
 Veri::Session.expired.terminate_all
 ```
 
-## Account Lockout
+When the current session is terminated, the controller still sees it for the rest of the request, so `logged_in?` stays true until the next request unless you call `log_in` or `log_out`. The same applies when a password update or an account suspension terminates it.
 
-Veri provides account lockout functionality to temporarily disable user accounts.
+## Account Suspension
+
+Veri provides account suspension functionality to temporarily disable user accounts.
 
 ```rb
-# Lock a user account
-user.lock!
+# Suspend a user account
+user.suspend!
 
-# Unlock a user account
-user.unlock!
+# Unsuspend a user account
+user.unsuspend!
 
-# Check if account is locked
-user.locked?
+# Check if account is suspended
+user.suspended?
 
-# Fetch locked users
-User.locked
+# Fetch suspended users
+User.suspended
 
-# Fetch unlocked users
-User.unlocked
+# Fetch unsuspended users
+User.unsuspended
 ```
 
-When an account is locked, the user cannot log in. If they're already logged in, their sessions are terminated and they are treated as unauthenticated.
+When an account is suspended, the user cannot log in. If they're already logged in, their sessions are terminated and they are treated as unauthenticated.
 
 ## User Impersonation
 
@@ -342,6 +393,16 @@ session.shapeshifted?
 
 # Returns original user when shapeshifted, otherwise current user
 session.true_identity
+
+# Fetch the sessions in which someone is impersonating this user
+user.sessions.shapeshifted
+```
+
+User method:
+
+```rb
+# Returns the sessions in which a user is impersonating someone
+user.shapeshifter_sessions
 ```
 
 Controller helper:
@@ -353,31 +414,40 @@ shapeshifter?
 
 ## Multi-Tenancy
 
-Veri supports multi-tenancy, allowing you to isolate authentication sessions between different tenants such as organizations, clients, or subdomains.
+Veri supports multi-tenancy, allowing you to tie authentication sessions to tenants such as organizations, clients, or subdomains.
 
 ### Setup
 
-To isolate authentication sessions between different tenants, override the `current_tenant` method:
+Pass the tenant when logging a user in:
 
 ```rb
-class ApplicationController < ActionController::Base
-  include Veri::Authentication
+# Option 1: String-based tenancy (e.g., subdomain)
+log_in(user, tenant: request.subdomain)
 
-  with_authentication
+# Option 2: Model-based tenancy (e.g., organization)
+log_in(user, tenant: company)
+```
 
-  private
+Tenants can be represented as either a string or an instance of a model declared as a tenant:
 
-  def current_tenant
-    # Option 1: String-based tenancy (e.g., subdomain)
-    request.subdomain
-
-    # Option 2: Model-based tenancy (e.g., organization)
-    Company.find_by(subdomain: request.subdomain)
-  end
+```rb
+class Company < ApplicationRecord
+  veri_tenant
 end
 ```
 
-By default, Veri assumes a single-tenant setup where `current_tenant` returns `nil`. Tenants can be represented as either a string or an `ActiveRecord` model instance.
+Without the `tenant:` argument the session has no tenant, which is the single-tenant setup.
+
+Use `current_tenant` in controllers and views to get the tenant of the current session:
+
+```rb
+# Returns the tenant (string, model instance, or nil if the session has no tenant)
+current_tenant
+```
+
+Since `nil` is a valid tenant, `current_tenant` raises an error when no user is logged in.
+
+Veri only stores the tenant in the session and returns it. The session itself is found by its cookie alone, whatever its tenant. How your application uses the tenant, if at all, is entirely up to it, so tenant management and scoping are the application's responsibility.
 
 ### Session Tenant Access
 
@@ -399,41 +469,30 @@ user.sessions.in_tenant(tenant)
 
 # Terminate all sessions for a specific user within a tenant
 user.sessions.in_tenant(tenant).terminate_all
+
+# If you use impersonation, fetch a user's impersonating sessions that return to a given tenant
+user.shapeshifter_sessions.in_original_tenant(tenant)
 ```
 
 ### Switching Tenants
 
 A session belongs to one tenant, and a browser holds one session per host. A user is therefore logged in to one tenant at a time, unless your tenants live on separate subdomains, where each subdomain keeps its own session.
 
-To move a user to another tenant, call `switch_tenant` on their session and make `current_tenant` return the new tenant from then on:
+To move a user to another tenant, call `switch_tenant` on their session:
 
 ```rb
-class ApplicationController < ActionController::Base
-  include Veri::Authentication
-
-  with_authentication
-
-  private
-
-  def current_tenant
-    # This example keeps the tenant in a cookie; your app can keep it anywhere
-    Company.find_by(id: cookies.signed[:company_id])
-  end
-end
-
 class CompaniesController < ApplicationController
   def switch
     company = current_user.companies.find(params[:id])
 
     current_session.switch_tenant(company)
-    cookies.signed[:company_id] = company.id
 
     redirect_to root_path, notice: "Switched to #{company.name}"
   end
 end
 ```
 
-The user stays logged in and the session keeps its expiration.
+The user stays logged in and the session keeps its expiration. This also covers applications where the tenant is not known at login: log the user in without a tenant and switch once they choose one.
 
 ### User Impersonation with Tenants
 
@@ -453,9 +512,9 @@ All other session methods work the same way in multi-tenant applications as in s
 
 ### Orphaned Sessions
 
-When a tenant object is deleted from your database, its associated sessions become orphaned.
+Destroying a record of a model declared with `veri_tenant` also deletes its sessions, including the impersonating sessions that return to it, so their users are logged out.
 
-Ideally, the application should be designed so that this doesn't happen: whenever a tenant object is deleted, its sessions are terminated as part of the same operation. However, if that wasn't done, you can clean up the orphaned sessions as a fallback:
+Sessions become orphaned when their tenant is removed without running Active Record callbacks, for example with `delete` or raw SQL, or is destroyed after its model stopped declaring `veri_tenant`. Users with orphaned sessions remain logged in, and looking up their tenant raises an error. Use `prune` as a fallback to delete orphaned sessions:
 
 ```rb
 Veri::Session.prune
@@ -463,7 +522,7 @@ Veri::Session.prune
 
 ### Tenant Migrations
 
-When you rename or remove models used as tenants, you need to update Veri's stored data accordingly. Use these irreversible data migrations:
+When you rename or remove models used as tenants, you need to update Veri's stored data accordingly. Veri adds these helpers to your migrations. The changes they make are irreversible:
 
 ```rb
 # Rename a tenant class (e.g., when you rename your Organization model to Company)
@@ -482,9 +541,9 @@ Access authentication state in your views:
   <p>Welcome, <%= current_user.name %>!</p>
   <% if shapeshifter? %>
     <p><em>Currently viewing as <%= current_user.name %> (Original: <%= current_session.true_identity.name %>)</em></p>
-    <%= link_to "Return to Original Identity", revert_path, method: :patch %>
+    <%= button_to "Return to Original Identity", revert_path, method: :patch %>
   <% end %>
-  <%= link_to "Logout", logout_path, method: :delete %>
+  <%= button_to "Logout", logout_path, method: :delete %>
 <% else %>
   <%= link_to "Login", login_path %>
 <% end %>
@@ -534,6 +593,33 @@ RSpec.configure do |config|
 end
 ```
 
+### Sessions as Test Data
+
+Code that receives a session, such as a service object that terminates all sessions but the current one, can be tested without logging in. Create the session directly:
+
+```rb
+module SessionHelpers
+  def create_session_for(user, tenant: nil)
+    session = Veri::Session.create!(
+      authenticatable: user,
+      hashed_token: SecureRandom.hex,
+      expires_at: 1.day.from_now,
+      last_seen_at: Time.current
+    )
+    session.switch_tenant(tenant)
+    session
+  end
+end
+
+# In your spec_helper.rb
+RSpec.configure do |config|
+  config.include SessionHelpers
+end
+
+# In a multi-tenant application
+create_session_for(user, tenant: company)
+```
+
 ## Getting Help and Contributing
 
 ### Getting Help
@@ -570,4 +656,4 @@ Everyone interacting in the Veri project is expected to follow the [code of cond
 
 Only the latest major version is actively maintained. READMEs for older versions are available here for reference:
 
-[v1.x.x](https://github.com/brownboxdev/veri-authentication/blob/9c188e16a703141b7cd89dd31d5cd49a557f143d/README.md)
+[v2.x.x](https://github.com/brownboxdev/veri-authentication/blob/e6909d2689c2ae11919fc3d1f3c50c19b2995a91/README.md) | [v1.x.x](https://github.com/brownboxdev/veri-authentication/blob/9c188e16a703141b7cd89dd31d5cd49a557f143d/README.md)
