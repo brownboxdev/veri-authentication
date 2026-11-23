@@ -256,6 +256,24 @@ RSpec.describe Veri::Authentication do
       end
     end
 
+    context "when the password is changed while the user is logging in" do
+      before { User.find(user.id).update_password("new_password") }
+
+      it "returns false, so a login with the old password does not survive the password change" do
+        expect(subject).to be false
+        expect(Veri::Session.count).to eq(0)
+      end
+    end
+
+    context "when the password is changed through the same user record before logging in" do
+      before { user.update_password("new_password") }
+
+      it "logs in the user, so they can stay signed in after changing their password" do
+        expect(subject).to be true
+        expect(controller.current_user).to eq(user)
+      end
+    end
+
     context "when the request is over HTTPS" do
       before { controller.request = ActionDispatch::TestRequest.create("HTTPS" => "on") }
 

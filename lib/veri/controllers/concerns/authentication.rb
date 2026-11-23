@@ -47,7 +47,9 @@ module Veri
       token = processed_authenticatable.transaction do
         locked_authenticatable = processed_authenticatable.class.unscoped.lock.find(processed_authenticatable.id)
 
-        Veri::Session.establish(processed_authenticatable, request, resolved_tenant) unless locked_authenticatable.suspended?
+        next if locked_authenticatable.suspended? || locked_authenticatable.password_updated_at != processed_authenticatable.password_updated_at_was
+
+        Veri::Session.establish(processed_authenticatable, request, resolved_tenant)
       end
 
       return false unless token
