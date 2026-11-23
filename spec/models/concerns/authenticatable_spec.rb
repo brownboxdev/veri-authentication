@@ -43,10 +43,10 @@ RSpec.describe Veri::Authenticatable do
     end
   end
 
-  describe "#impersonating_sessions" do
+  describe "#shapeshifter_sessions" do
     let(:user) { User.create! }
     let(:other_user) { User.create! }
-    let!(:impersonating_session) do
+    let!(:shapeshifter_session) do
       Veri::Session.create!(
         authenticatable: other_user,
         original_authenticatable: user,
@@ -67,12 +67,12 @@ RSpec.describe Veri::Authenticatable do
     end
 
     it "returns the sessions in which the user impersonates someone" do
-      expect(user.impersonating_sessions).to contain_exactly(impersonating_session)
+      expect(user.shapeshifter_sessions).to contain_exactly(shapeshifter_session)
     end
 
     it "destroys them together with the user" do
       user.destroy!
-      expect(Veri::Session.exists?(impersonating_session.id)).to be false
+      expect(Veri::Session.exists?(shapeshifter_session.id)).to be false
     end
   end
 
@@ -150,7 +150,7 @@ RSpec.describe Veri::Authenticatable do
           shapeshifted_at: Time.current
         )
 
-        expect { subject }.to change(user.impersonating_sessions, :count).from(1).to(0)
+        expect { subject }.to change(user.shapeshifter_sessions, :count).from(1).to(0)
       end
 
       context "when terminate_sessions is false" do
@@ -388,7 +388,7 @@ RSpec.describe Veri::Authenticatable do
         shapeshifted_at: Time.current
       )
 
-      expect { subject }.to change(user.impersonating_sessions, :count).from(1).to(0)
+      expect { subject }.to change(user.shapeshifter_sessions, :count).from(1).to(0)
     end
   end
 

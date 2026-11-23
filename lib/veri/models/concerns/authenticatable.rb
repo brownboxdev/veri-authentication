@@ -8,7 +8,7 @@ module Veri
       @@included = name
 
       has_many :sessions, class_name: "Veri::Session", foreign_key: :authenticatable_id, dependent: :delete_all
-      has_many :impersonating_sessions, class_name: "Veri::Session", foreign_key: :original_authenticatable_id, dependent: :delete_all
+      has_many :shapeshifter_sessions, class_name: "Veri::Session", foreign_key: :original_authenticatable_id, dependent: :delete_all
 
       scope :suspended, -> { where(suspended: true) }
       scope :unsuspended, -> { where(suspended: false) }
@@ -23,7 +23,7 @@ module Veri
       transaction do
         update!(hashed_password:, password_updated_at: Time.current)
 
-        sessions.or(impersonating_sessions).terminate_all if processed_terminate_sessions
+        sessions.or(shapeshifter_sessions).terminate_all if processed_terminate_sessions
       end
 
       true
@@ -57,7 +57,7 @@ module Veri
     def suspend!
       transaction do
         update!(suspended: true, suspended_at: Time.current)
-        sessions.or(impersonating_sessions).terminate_all
+        sessions.or(shapeshifter_sessions).terminate_all
       end
 
       true

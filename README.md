@@ -402,7 +402,7 @@ User method:
 
 ```rb
 # Returns the sessions in which a user is impersonating someone
-user.impersonating_sessions
+user.shapeshifter_sessions
 ```
 
 Controller helper:
@@ -471,7 +471,7 @@ user.sessions.in_tenant(tenant)
 user.sessions.in_tenant(tenant).terminate_all
 
 # If you use impersonation, fetch a user's impersonating sessions that return to a given tenant
-user.impersonating_sessions.in_original_tenant(tenant)
+user.shapeshifter_sessions.in_original_tenant(tenant)
 ```
 
 ### Switching Tenants
