@@ -394,7 +394,7 @@ session.shapeshifted?
 # Returns original user when shapeshifted, otherwise current user
 session.true_identity
 
-# Fetch all shapeshifted sessions
+# Fetch the sessions in which someone is impersonating this user
 user.sessions.shapeshifted
 ```
 
@@ -541,9 +541,9 @@ Access authentication state in your views:
   <p>Welcome, <%= current_user.name %>!</p>
   <% if shapeshifter? %>
     <p><em>Currently viewing as <%= current_user.name %> (Original: <%= current_session.true_identity.name %>)</em></p>
-    <%= link_to "Return to Original Identity", revert_path, method: :patch %>
+    <%= button_to "Return to Original Identity", revert_path, method: :patch %>
   <% end %>
-  <%= link_to "Logout", logout_path, method: :delete %>
+  <%= button_to "Logout", logout_path, method: :delete %>
 <% else %>
   <%= link_to "Login", login_path %>
 <% end %>
