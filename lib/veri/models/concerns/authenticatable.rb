@@ -45,7 +45,11 @@ module Veri
 
       return false unless stored_hasher.verify(processed_password, hash)
 
-      self.class.unscoped.where(self.class.primary_key => id, hashed_password:).update_all(hashed_password: hash_password(processed_password)) unless stored_hasher == Veri::Configuration.hasher
+      unless stored_hasher == Veri::Configuration.hasher
+        self.hashed_password = hash_password(processed_password)
+        self.class.unscoped.where(self.class.primary_key => id, hashed_password: hashed_password_was).update_all(hashed_password:)
+        clear_attribute_changes([:hashed_password])
+      end
 
       true
     end
