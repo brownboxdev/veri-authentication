@@ -16,7 +16,11 @@ module Veri
       resolved_tenant = Veri::Inputs::Tenant.new(tenant).resolve
       shapeshifted.where(original_tenant_type: resolved_tenant[:tenant_type], original_tenant_id: resolved_tenant[:tenant_id])
     end
-    scope :active, -> { where.not(id: expired.select(:id)).where.not(id: inactive.select(:id)) }
+    scope :active, -> do
+      inactive_session_lifetime = Veri::Configuration.inactive_session_lifetime
+      active = where(expires_at: Time.current..)
+      inactive_session_lifetime ? active.where(last_seen_at: (Time.current - inactive_session_lifetime)..) : active
+    end
     scope :expired, -> { where(expires_at: ...Time.current) }
     scope :inactive, -> do
       inactive_session_lifetime = Veri::Configuration.inactive_session_lifetime

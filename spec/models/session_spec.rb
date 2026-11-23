@@ -146,15 +146,15 @@ RSpec.describe Veri::Session do
         last_seen_at: Time.current
       )
     end
-
-    before do
-      Veri::Configuration.configure { _1.inactive_session_lifetime = 5.minutes }
+    let!(:expired_session) do
       described_class.create!(
         expires_at: 1.hour.ago,
         authenticatable: User.create!,
         hashed_token: "bar",
         last_seen_at: Time.current
       )
+    end
+    let!(:stale_session) do
       described_class.create!(
         expires_at: 1.hour.from_now,
         authenticatable: User.create!,
@@ -163,7 +163,20 @@ RSpec.describe Veri::Session do
       )
     end
 
-    it { is_expected.to contain_exactly(active_session) }
+    context "when inactive session lifetime is set" do
+      before { Veri::Configuration.configure { _1.inactive_session_lifetime = 5.minutes } }
+
+      it { is_expected.to contain_exactly(active_session) }
+
+      it "terminates only active sessions" do
+        subject.terminate_all
+        expect(described_class.all).to contain_exactly(expired_session, stale_session)
+      end
+    end
+
+    context "when inactive session lifetime is not set" do
+      it { is_expected.to contain_exactly(active_session, stale_session) }
+    end
   end
 
   describe ".expired" do
